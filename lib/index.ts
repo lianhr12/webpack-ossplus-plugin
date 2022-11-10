@@ -1,6 +1,6 @@
 import path from 'path';
 import chalk from 'chalk';
-import { mergeWith, cloneDeep, isPlainObject, merge, map } from 'lodash-es';
+import { mergeWith, cloneDeep, isPlainObject, merge, map } from 'lodash';
 import AliOSS from 'ali-oss';
 import COS from 'cos-nodejs-sdk-v5';
 import { Buffer } from 'buffer';
@@ -177,7 +177,7 @@ interface IFileInfo {
 
 export class WebpackOSSPlusPlugin {
   config = defaultConfig; // 配置参数
-  client = {} as AliOSS | COS; // 阿里云OSS客户端
+  client = {} as AliOSS & COS; // 阿里云OSS客户端
   finalPrefix = ""; // 最终计算出来的prefix路径
   currentProvider = {} as AliOSSOptions & QcouldOSSOptions; // 当前提供服务商信息
   providerType;
@@ -489,5 +489,5 @@ function log(...args) {
 }
 
 function warn(...args) {
-  console.warn(chalk.bgMagenta('[webpack-alioss-plugin]:'), ...args) // eslint-disable-line
+  console.warn(chalk.bgMagenta('[webpack-ossplus-plugin]:'), ...args) // eslint-disable-line
 }
