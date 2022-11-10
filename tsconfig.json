@@ -104,8 +104,15 @@
     // "skipDefaultLibCheck": true,                      /* Skip type checking .d.ts files that are included with TypeScript. */
     "skipLibCheck": true                                 /* Skip type checking all .d.ts files. */
   },
-  "exclude": [ /* 编译打包时，排除掉的文件夹 */
-    "./dist",
-    "node_modules"
+  /* 编译打包时，排除掉的文件夹 */
+   // "./dist",
+    // "node_modules/*"
+  // "exclude": [ 
+   
+  // ],
+  "include": [
+    // 因为有些第三方包是使用commonjs 包，如果ts不做编译处理，输出的包会报错，提示require() of ES Module xxxx from xxxxx not supported。
+    // 要么彻底改为ES Module，要么在这里处理编译
+    "node_modules/chalk/**/*"
   ]
 }
