@@ -1,6 +1,6 @@
 import path from 'path';
 import chalk from 'chalk';
-import { map, mergeWith, cloneDeep, isPlainObject, merge } from 'lodash-es';
+import { map, mergeWith, cloneDeep, isPlainObject, merge } from 'lodash';
 import AliOSS from 'ali-oss';
 import COS from 'cos-nodejs-sdk-v5';
 import { Buffer } from 'buffer';
@@ -372,7 +372,7 @@ function warn() {
     for (var _i = 0; _i < arguments.length; _i++) {
         args[_i] = arguments[_i];
     }
-    console.warn.apply(console, __spreadArray([chalk.bgMagenta('[webpack-alioss-plugin]:')], args, false)); // eslint-disable-line
+    console.warn.apply(console, __spreadArray([chalk.bgMagenta('[webpack-ossplus-plugin]:')], args, false)); // eslint-disable-line
 }
 
 export { WebpackOSSPlusPlugin };

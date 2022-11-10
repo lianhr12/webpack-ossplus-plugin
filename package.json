@@ -2,7 +2,7 @@
   "name": "webpack-ossplus-plugin",
   "version": "1.0.0",
   "description": "webpack OSS上传插件, 可在 webpack 打包结束后将来 webpack 生成的文件自动上传到 OSS 中，目前支持阿里云、腾讯云、七牛云服务提供商",
-  "main": "dist/index.umd.js",
+  "main": "dist/index.cjs.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "scripts": {

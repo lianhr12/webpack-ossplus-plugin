@@ -4,7 +4,7 @@ Object.defineProperty(exports, '__esModule', { value: true });
 
 var path = require('path');
 var chalk = require('chalk');
-var lodashEs = require('lodash-es');
+var lodash = require('lodash');
 var AliOSS = require('ali-oss');
 var COS = require('cos-nodejs-sdk-v5');
 var buffer = require('buffer');
@@ -72,9 +72,9 @@ var WebpackOSSPlusPlugin = /** @class */ (function () {
         this.finalPrefix = ""; // 最终计算出来的prefix路径
         this.currentProvider = {}; // 当前提供服务商信息
         // 合并配置信息
-        this.config = lodashEs.mergeWith(lodashEs.cloneDeep(this.config), config || {}, function (objVal, srcVal) {
-            if (lodashEs.isPlainObject(objVal) && lodashEs.isPlainObject(srcVal)) {
-                return lodashEs.merge(objVal, srcVal);
+        this.config = lodash.mergeWith(lodash.cloneDeep(this.config), config || {}, function (objVal, srcVal) {
+            if (lodash.isPlainObject(objVal) && lodash.isPlainObject(srcVal)) {
+                return lodash.merge(objVal, srcVal);
             }
             else {
                 return srcVal;
@@ -142,7 +142,7 @@ var WebpackOSSPlusPlugin = /** @class */ (function () {
                 matched[key] = compilation.assets[key];
             }
         }
-        return lodashEs.map(matched, function (value, name) { return ({
+        return lodash.map(matched, function (value, name) { return ({
             name: name,
             path: value.existsAt ? value.existsAt : name,
             content: value.source()
@@ -239,7 +239,7 @@ var WebpackOSSPlusPlugin = /** @class */ (function () {
     WebpackOSSPlusPlugin.prototype.batchUploadFiles = function (files, compilation) {
         var _this_1 = this;
         var i = 1;
-        return Promise.all(lodashEs.map(files, function (file) {
+        return Promise.all(lodash.map(files, function (file) {
             file.$retryTime = 0;
             var uploadName = path__default["default"].join(_this_1.finalPrefix, file.name);
             // 是否检测文件存在，不检测直接上传处理
@@ -384,7 +384,7 @@ function warn() {
     for (var _i = 0; _i < arguments.length; _i++) {
         args[_i] = arguments[_i];
     }
-    console.warn.apply(console, __spreadArray([chalk__default["default"].bgMagenta('[webpack-alioss-plugin]:')], args, false)); // eslint-disable-line
+    console.warn.apply(console, __spreadArray([chalk__default["default"].bgMagenta('[webpack-ossplus-plugin]:')], args, false)); // eslint-disable-line
 }
 
 exports.WebpackOSSPlusPlugin = WebpackOSSPlusPlugin;
