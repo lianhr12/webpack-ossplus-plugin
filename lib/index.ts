@@ -289,11 +289,11 @@ export class WebpackOSSPlusPlugin {
   checkOSSFile(file: IFileInfo, idx: number, files: IFileInfo[], compilation: Compilation, uploadName: string) {
     // 检测OSS是否存在该文件处理
     if (this.providerType === ProviderType.AliOSS) {
-      return this.aliUploadFile(file, idx, files, compilation, uploadName);
+      return this.aliCheckOSSFile(file, idx, files, compilation, uploadName);
     }
 
     if (this.providerType === ProviderType.QCloudOSS) {
-      return this.qcloudUploadFile(file, idx, files, compilation, uploadName);
+      return this.qcloudCheckOSSFile(file, idx, files, compilation, uploadName);
     }
 
     return Promise.reject('检测OSS文件失败！');

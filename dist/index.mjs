@@ -158,10 +158,10 @@ var WebpackOSSPlusPlugin = /** @class */ (function () {
     WebpackOSSPlusPlugin.prototype.checkOSSFile = function (file, idx, files, compilation, uploadName) {
         // 检测OSS是否存在该文件处理
         if (this.providerType === ProviderType.AliOSS) {
-            return this.aliUploadFile(file, idx, files, compilation, uploadName);
+            return this.aliCheckOSSFile(file, idx, files, compilation, uploadName);
         }
         if (this.providerType === ProviderType.QCloudOSS) {
-            return this.qcloudUploadFile(file, idx, files, compilation, uploadName);
+            return this.qcloudCheckOSSFile(file, idx, files, compilation, uploadName);
         }
         return Promise.reject('检测OSS文件失败！');
     };
@@ -229,12 +229,12 @@ var WebpackOSSPlusPlugin = /** @class */ (function () {
         var i = 1;
         return Promise.all(map(files, function (file) {
             file.$retryTime = 0;
-            console.log(path.sep);
             var uploadName;
             if (path.sep === '/') {
                 uploadName = path.join(_this_1.finalPrefix, file.name);
             }
             else {
+                // Windows 路径进行处理
                 uploadName = path.join(_this_1.finalPrefix, file.name).split(path.sep).join('/');
             }
             // 是否检测文件存在，不检测直接上传处理
