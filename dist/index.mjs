@@ -229,7 +229,14 @@ var WebpackOSSPlusPlugin = /** @class */ (function () {
         var i = 1;
         return Promise.all(map(files, function (file) {
             file.$retryTime = 0;
-            var uploadName = path.join(_this_1.finalPrefix, file.name);
+            console.log(path.sep);
+            var uploadName;
+            if (path.sep === '/') {
+                uploadName = path.join(_this_1.finalPrefix, file.name);
+            }
+            else {
+                uploadName = path.join(_this_1.finalPrefix, file.name).split(path.sep).join('/');
+            }
             // 是否检测文件存在，不检测直接上传处理
             if (!_this_1.config.existCheck) {
                 return _this_1.uploadFile(file, i++, files, compilation, uploadName);

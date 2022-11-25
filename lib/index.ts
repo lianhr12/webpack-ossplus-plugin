@@ -358,7 +358,13 @@ export class WebpackOSSPlusPlugin {
     let i = 1;
     return Promise.all(map(files, (file) => {
       file.$retryTime = 0;
-      const uploadName = path.join(this.finalPrefix, file.name);
+      let uploadName;
+      if (path.sep === '/') {
+        uploadName = path.join(this.finalPrefix, file.name);
+      } else {
+        // Windows 路径进行处理
+        uploadName = path.join(this.finalPrefix, file.name).split(path.sep).join('/');
+      }
       // 是否检测文件存在，不检测直接上传处理
       if (!this.config.existCheck) {
         return this.uploadFile(file, i++, files, compilation, uploadName);
