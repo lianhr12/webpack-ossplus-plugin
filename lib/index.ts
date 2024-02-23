@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { mergeWith, cloneDeep, isPlainObject, merge, map } from 'lodash';
 import AliOSS from 'ali-oss';
 import COS from 'cos-nodejs-sdk-v5';
+import qiniu from 'qiniu';
 import { Buffer } from 'buffer';
 import zlib from 'zlib';
 import { Compilation, Compiler } from 'webpack';
@@ -58,6 +59,20 @@ export interface AliOSSOptions {
     headers?: any
   };
 }
+export interface QiniuOSSOptions {
+  /**
+   * Access Key
+   */
+  accessKey?: string;
+  /**
+   * Secret Key
+   */
+  secretKey?: string;
+  /**
+  * OSS 存储空间
+  */
+  bucket?: string;
+}
 
 export interface WebpackOSSPlusPluginOptions {
   // 提供商信息
@@ -67,7 +82,8 @@ export interface WebpackOSSPlusPluginOptions {
      */
     aliOSS?: AliOSSOptions;
     qcloudOS?: QcouldOSSOptions;
-    // TODO： 支持七牛云OSS
+    // 支持七牛云OSS
+    qiniuOSS?: QiniuOSSOptions;
   };
   /**
    * 要排除的文件, 符合该正则表达式的文件不会上传
@@ -165,7 +181,8 @@ const yellow = chalk.yellow;
 
 enum ProviderType {
   AliOSS = 0, // 阿里云OSS
-  QCloudOSS = 1 // 腾讯云OSS
+  QCloudOSS = 1, // 腾讯云OSS
+  QiniuOSS = 2 // 七牛云OSS
 }
 
 interface IFileInfo {
@@ -179,7 +196,7 @@ export class WebpackOSSPlusPlugin {
   config = defaultConfig; // 配置参数
   client = {} as AliOSS & COS; // 阿里云OSS客户端
   finalPrefix = ""; // 最终计算出来的prefix路径
-  currentProvider = {} as AliOSSOptions & QcouldOSSOptions; // 当前提供服务商信息
+  currentProvider = {} as AliOSSOptions & QcouldOSSOptions & QiniuOSSOptions; // 当前提供服务商信息
   providerType;
 
   constructor(config: WebpackOSSPlusPluginOptions) {
@@ -227,6 +244,30 @@ export class WebpackOSSPlusPlugin {
         SecretId,
         SecretKey
       });
+    } else if (typeof provider.qiniuOSS !== 'undefined') {
+      this.currentProvider = provider.qiniuOSS;
+      this.providerType = ProviderType.QiniuOSS;
+      const { accessKey, secretKey, bucket } = provider.qiniuOSS;
+      const mac = new qiniu.auth.digest.Mac(accessKey, secretKey);
+      const options = {
+        scope: bucket,
+      };
+      const putPolicy = new qiniu.rs.PutPolicy(options);
+      var uploadToken = putPolicy.uploadToken(mac);
+
+      let config = new qiniu.conf.Config() as any;
+      config.zone = qiniu.zone.Zone_z2;
+
+      const formUploader = new qiniu.form_up.FormUploader(config);
+      const putExtra = new qiniu.form_up.PutExtra();
+
+      const bucketManager = new qiniu.rs.BucketManager(mac, config);
+      this.client = {
+        qiniuToken: uploadToken,
+        bucketManager,
+        formUploader,
+        putExtra
+      }
     }
   }
 
@@ -247,6 +288,7 @@ export class WebpackOSSPlusPlugin {
   pickupAssetsFile(compilation: Compilation): IFileInfo[] | undefined {
     const matched = {};
     const keys = Object.keys(compilation.assets);
+
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i]
       // 排除不符合要求的文件
@@ -294,6 +336,11 @@ export class WebpackOSSPlusPlugin {
 
     if (this.providerType === ProviderType.QCloudOSS) {
       return this.qcloudCheckOSSFile(file, idx, files, compilation, uploadName);
+    }
+
+    // 七牛云
+    if (this.providerType === ProviderType.QiniuOSS) {
+      return this.qiniuCheckOSSFile(file, idx, files, compilation, uploadName);
     }
 
     return Promise.reject('检测OSS文件失败！');
@@ -353,6 +400,28 @@ export class WebpackOSSPlusPlugin {
       });
     });
   }
+  qiniuCheckOSSFile(file: IFileInfo, idx: number, files: IFileInfo[], compilation: Compilation, uploadName: string) {
+    return new Promise((resolve, reject) => {
+      this.client.bucketManager.stat(this.currentProvider.bucket, uploadName, (err, respBody, respInfo) => {
+        if (err) {
+          reject(err)
+        }
+        const { statusCode } = respInfo
+        if (statusCode == 200) {
+          log(`${green('已存在,免上传')} ${idx}/${files.length}: ${uploadName}`)
+          this.config.removeMode && delete compilation.assets[file.name]
+          resolve(respBody)
+        } else {
+          this.qiniuUploadFile(file, idx, files, compilation, uploadName)
+            .then((uRes) => {
+              resolve(uRes);
+            }).catch((uErr) => {
+              reject(uErr);
+            })
+        }
+      })
+    })
+  }
 
   batchUploadFiles(files, compilation: Compilation) {
     let i = 1;
@@ -382,6 +451,11 @@ export class WebpackOSSPlusPlugin {
 
     if (this.providerType === ProviderType.QCloudOSS) {
       return this.qcloudUploadFile(file, idx, files, compilation, uploadName);
+    }
+
+    // 七牛云
+    if (this.providerType === ProviderType.QiniuOSS) {
+      return this.qiniuUploadFile(file, idx, files, compilation, uploadName);
     }
 
     return Promise.reject('没有找到上传SDK!');
@@ -453,6 +527,40 @@ export class WebpackOSSPlusPlugin {
           reject(err);
         })
     });
+  }
+
+  qiniuUploadFile(file: IFileInfo, idx: number, files: IFileInfo[], compilation: Compilation, uploadName: string) {
+    return new Promise((resolve, reject) => {
+      const fileCount = files.length;
+      getFileContentBuffer(file, this.config.gzip).then(contentBuffer => {
+        const _this = this
+        function _uploadAction() {
+          file.$retryTime++;
+          log(`开始上传 ${idx}/${fileCount}: ${file.$retryTime > 1 ? '第' + (file.$retryTime - 1) + '次重试' : ''}`, uploadName);
+          _this.client.formUploader.put(_this.client.qiniuToken, uploadName, contentBuffer, _this.client.putExtra, (respErr, respBody, respInfo) => {
+            if (respErr) {
+              log(`respErr: ${respErr}`)
+              reject(respErr)
+            }
+            const { statusCode } = respInfo
+            if (statusCode == 200) {
+              log(`上传成功 ${idx}/${fileCount}: ${uploadName}`);
+              _this.config.removeMode && delete compilation.assets[file.name];
+              resolve(respBody);
+            } else {
+              if (file.$retryTime < _this.config.retry + 1) {
+                _uploadAction();
+              } else {
+                reject(respBody);
+              }
+            }
+          });
+        }
+        _uploadAction();
+      }).catch(err => {
+        reject(err)
+      })
+    })
   }
 
   getOSSUploadOptions() {

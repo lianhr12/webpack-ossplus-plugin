@@ -38,6 +38,12 @@ module.exports = {
         //   Region: 'ap-guangzhou',
         //   Bucket: 'xx',
         // }
+        // 七牛云 配置
+        qiniuOSS: {
+          accessKey: 'xxx',
+          secretKey: 'xxx',
+          bucket: 'xx',
+        },
       },
       ossBaseDir: 'demo-project', // 一级目录
       project: 'dev/20221125', // 二级目录，项目名(用于存放文件的直接目录)
