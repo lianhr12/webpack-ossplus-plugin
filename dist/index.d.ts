@@ -51,6 +51,20 @@ interface AliOSSOptions {
         headers?: any;
     };
 }
+interface QiniuOSSOptions {
+    /**
+     * Access Key
+     */
+    accessKey?: string;
+    /**
+     * Secret Key
+     */
+    secretKey?: string;
+    /**
+    * OSS 存储空间
+    */
+    bucket?: string;
+}
 interface WebpackOSSPlusPluginOptions {
     provider: {
         /**
@@ -58,6 +72,7 @@ interface WebpackOSSPlusPluginOptions {
          */
         aliOSS?: AliOSSOptions;
         qcloudOS?: QcouldOSSOptions;
+        qiniuOSS?: QiniuOSSOptions;
     };
     /**
      * 要排除的文件, 符合该正则表达式的文件不会上传
@@ -140,7 +155,7 @@ declare class WebpackOSSPlusPlugin {
     config: WebpackOSSPlusPluginOptions;
     client: any;
     finalPrefix: string;
-    currentProvider: AliOSSOptions & QcouldOSSOptions;
+    currentProvider: AliOSSOptions & QcouldOSSOptions & QiniuOSSOptions;
     providerType: any;
     constructor(config: WebpackOSSPlusPluginOptions);
     apply(compiler: CompilerExt): void;
@@ -149,10 +164,12 @@ declare class WebpackOSSPlusPlugin {
     checkOSSFile(file: IFileInfo, idx: number, files: IFileInfo[], compilation: Compilation, uploadName: string): Promise<unknown>;
     aliCheckOSSFile(file: IFileInfo, idx: number, files: IFileInfo[], compilation: Compilation, uploadName: string): Promise<unknown>;
     qcloudCheckOSSFile(file: IFileInfo, idx: number, files: IFileInfo[], compilation: Compilation, uploadName: string): Promise<unknown>;
+    qiniuCheckOSSFile(file: IFileInfo, idx: number, files: IFileInfo[], compilation: Compilation, uploadName: string): Promise<unknown>;
     batchUploadFiles(files: any, compilation: Compilation): Promise<any>;
     uploadFile(file: IFileInfo, idx: number, files: IFileInfo[], compilation: Compilation, uploadName: string): Promise<unknown>;
     aliUploadFile(file: IFileInfo, idx: number, files: IFileInfo[], compilation: Compilation, uploadName: string): Promise<unknown>;
     qcloudUploadFile(file: IFileInfo, idx: number, files: IFileInfo[], compilation: Compilation, uploadName: string): Promise<unknown>;
+    qiniuUploadFile(file: IFileInfo, idx: number, files: IFileInfo[], compilation: Compilation, uploadName: string): Promise<unknown>;
     getOSSUploadOptions(): {
         headers?: any;
     } & {
@@ -161,4 +178,4 @@ declare class WebpackOSSPlusPlugin {
     debug(...args: any[]): void;
 }
 
-export { AliOSSOptions, QcouldOSSOptions, WebpackOSSPlusPlugin, WebpackOSSPlusPluginOptions };
+export { AliOSSOptions, QcouldOSSOptions, QiniuOSSOptions, WebpackOSSPlusPlugin, WebpackOSSPlusPluginOptions };

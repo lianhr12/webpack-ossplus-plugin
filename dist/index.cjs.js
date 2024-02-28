@@ -7,6 +7,7 @@ var chalk = require('chalk');
 var lodash = require('lodash');
 var AliOSS = require('ali-oss');
 var COS = require('cos-nodejs-sdk-v5');
+var qiniu = require('qiniu');
 var buffer = require('buffer');
 var zlib = require('zlib');
 
@@ -16,6 +17,7 @@ var path__default = /*#__PURE__*/_interopDefaultLegacy(path);
 var chalk__default = /*#__PURE__*/_interopDefaultLegacy(chalk);
 var AliOSS__default = /*#__PURE__*/_interopDefaultLegacy(AliOSS);
 var COS__default = /*#__PURE__*/_interopDefaultLegacy(COS);
+var qiniu__default = /*#__PURE__*/_interopDefaultLegacy(qiniu);
 var zlib__default = /*#__PURE__*/_interopDefaultLegacy(zlib);
 
 /******************************************************************************
@@ -63,7 +65,8 @@ var yellow = chalk__default["default"].yellow;
 var ProviderType;
 (function (ProviderType) {
     ProviderType[ProviderType["AliOSS"] = 0] = "AliOSS";
-    ProviderType[ProviderType["QCloudOSS"] = 1] = "QCloudOSS"; // 腾讯云OSS
+    ProviderType[ProviderType["QCloudOSS"] = 1] = "QCloudOSS";
+    ProviderType[ProviderType["QiniuOSS"] = 2] = "QiniuOSS"; // 七牛云OSS
 })(ProviderType || (ProviderType = {}));
 var WebpackOSSPlusPlugin = /** @class */ (function () {
     function WebpackOSSPlusPlugin(config) {
@@ -109,6 +112,28 @@ var WebpackOSSPlusPlugin = /** @class */ (function () {
                 SecretId: SecretId,
                 SecretKey: SecretKey
             });
+        }
+        else if (typeof provider.qiniuOSS !== 'undefined') {
+            this.currentProvider = provider.qiniuOSS;
+            this.providerType = ProviderType.QiniuOSS;
+            var _d = provider.qiniuOSS, accessKey = _d.accessKey, secretKey = _d.secretKey, bucket = _d.bucket;
+            var mac = new qiniu__default["default"].auth.digest.Mac(accessKey, secretKey);
+            var options = {
+                scope: bucket,
+            };
+            var putPolicy = new qiniu__default["default"].rs.PutPolicy(options);
+            var uploadToken = putPolicy.uploadToken(mac);
+            var config_1 = new qiniu__default["default"].conf.Config();
+            config_1.zone = qiniu__default["default"].zone.Zone_z2;
+            var formUploader = new qiniu__default["default"].form_up.FormUploader(config_1);
+            var putExtra = new qiniu__default["default"].form_up.PutExtra();
+            var bucketManager = new qiniu__default["default"].rs.BucketManager(mac, config_1);
+            this.client = {
+                qiniuToken: uploadToken,
+                bucketManager: bucketManager,
+                formUploader: formUploader,
+                putExtra: putExtra
+            };
         }
     }
     WebpackOSSPlusPlugin.prototype.apply = function (compiler) {
@@ -175,6 +200,10 @@ var WebpackOSSPlusPlugin = /** @class */ (function () {
         if (this.providerType === ProviderType.QCloudOSS) {
             return this.qcloudCheckOSSFile(file, idx, files, compilation, uploadName);
         }
+        // 七牛云
+        if (this.providerType === ProviderType.QiniuOSS) {
+            return this.qiniuCheckOSSFile(file, idx, files, compilation, uploadName);
+        }
         return Promise.reject('检测OSS文件失败！');
     };
     WebpackOSSPlusPlugin.prototype.aliCheckOSSFile = function (file, idx, files, compilation, uploadName) {
@@ -236,6 +265,30 @@ var WebpackOSSPlusPlugin = /** @class */ (function () {
             });
         });
     };
+    WebpackOSSPlusPlugin.prototype.qiniuCheckOSSFile = function (file, idx, files, compilation, uploadName) {
+        var _this_1 = this;
+        return new Promise(function (resolve, reject) {
+            _this_1.client.bucketManager.stat(_this_1.currentProvider.bucket, uploadName, function (err, respBody, respInfo) {
+                if (err) {
+                    reject(err);
+                }
+                var statusCode = respInfo.statusCode;
+                if (statusCode == 200) {
+                    log("".concat(green('已存在,免上传'), " ").concat(idx, "/").concat(files.length, ": ").concat(uploadName));
+                    _this_1.config.removeMode && delete compilation.assets[file.name];
+                    resolve(respBody);
+                }
+                else {
+                    _this_1.qiniuUploadFile(file, idx, files, compilation, uploadName)
+                        .then(function (uRes) {
+                        resolve(uRes);
+                    }).catch(function (uErr) {
+                        reject(uErr);
+                    });
+                }
+            });
+        });
+    };
     WebpackOSSPlusPlugin.prototype.batchUploadFiles = function (files, compilation) {
         var _this_1 = this;
         var i = 1;
@@ -265,6 +318,10 @@ var WebpackOSSPlusPlugin = /** @class */ (function () {
         }
         if (this.providerType === ProviderType.QCloudOSS) {
             return this.qcloudUploadFile(file, idx, files, compilation, uploadName);
+        }
+        // 七牛云
+        if (this.providerType === ProviderType.QiniuOSS) {
+            return this.qiniuUploadFile(file, idx, files, compilation, uploadName);
         }
         return Promise.reject('没有找到上传SDK!');
     };
@@ -334,6 +391,42 @@ var WebpackOSSPlusPlugin = /** @class */ (function () {
                 _uploadAction();
             })
                 .catch(function (err) {
+                reject(err);
+            });
+        });
+    };
+    WebpackOSSPlusPlugin.prototype.qiniuUploadFile = function (file, idx, files, compilation, uploadName) {
+        var _this_1 = this;
+        return new Promise(function (resolve, reject) {
+            var fileCount = files.length;
+            getFileContentBuffer(file, _this_1.config.gzip).then(function (contentBuffer) {
+                var _this = _this_1;
+                function _uploadAction() {
+                    file.$retryTime++;
+                    log("\u5F00\u59CB\u4E0A\u4F20 ".concat(idx, "/").concat(fileCount, ": ").concat(file.$retryTime > 1 ? '第' + (file.$retryTime - 1) + '次重试' : ''), uploadName);
+                    _this.client.formUploader.put(_this.client.qiniuToken, uploadName, contentBuffer, _this.client.putExtra, function (respErr, respBody, respInfo) {
+                        if (respErr) {
+                            log("respErr: ".concat(respErr));
+                            reject(respErr);
+                        }
+                        var statusCode = respInfo.statusCode;
+                        if (statusCode == 200) {
+                            log("\u4E0A\u4F20\u6210\u529F ".concat(idx, "/").concat(fileCount, ": ").concat(uploadName));
+                            _this.config.removeMode && delete compilation.assets[file.name];
+                            resolve(respBody);
+                        }
+                        else {
+                            if (file.$retryTime < _this.config.retry + 1) {
+                                _uploadAction();
+                            }
+                            else {
+                                reject(respBody);
+                            }
+                        }
+                    });
+                }
+                _uploadAction();
+            }).catch(function (err) {
                 reject(err);
             });
         });
